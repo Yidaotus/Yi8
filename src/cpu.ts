@@ -191,6 +191,9 @@ const cpu_decode = (state: ICPUState) => {
       const subType = state.currentInstruction & 0x00ff;
       if (subType === 0xee) {
         state.execThunk = () => ops.RET(state);
+      } else {
+        state.execThunk = () => {};
+        state.halt = true;
       }
       return;
     }
