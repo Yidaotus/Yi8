@@ -1,0 +1,12 @@
+<html>
+  <head>
+    <script type="module">
+      import * as i from './built/index.js';
+      document.getElementById("fileinput").onchange = (event) => i.readFile(event.target);
+    </script>
+  </head>
+  <body>
+    <h1>Yi-8</h1>
+    <input type="file" id="fileinput" />
+  </body>
+</html>
