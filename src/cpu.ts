@@ -7,6 +7,9 @@ interface ICPUState {
   currentInstruction: number;
   halt: boolean;
   execThunk(): void;
+  DT: number;
+  ST: number;
+  clockSpeed: number;
 }
 
 const DIGIT_SPRITES: { [index: number]: number[] } = {
@@ -65,7 +68,10 @@ type OpCode =
   | "SNE"
   | "JMP"
   | "RET"
-  | "LD_F";
+  | "LD_F"
+  | "LD_DT"
+  | "LD_VX_DT"
+  | "LD_ST";
 type StateModifier = (state: ICPUState, ...rest: unknown[]) => void;
 type IOpCodes = {
   [key in OpCode]: StateModifier;
@@ -86,6 +92,15 @@ const ops: IOpCodes = {
   },
   LD_F: (state: ICPUState, character: number) => {
     state.specialReg[SpecialRegs.I] = character * 5;
+  },
+  LD_DT: (state: ICPUState, register: number) => {
+    state.DT = state.registers[register] * state.clockSpeed / 60;
+  },
+  LD_VX_DT: (state: ICPUState, register: number) => {
+    state.registers[register] = Math.round(state.DT * (60 / state.clockSpeed));
+  },
+  LD_ST: (state: ICPUState, register: number) => {
+    state.ST = state.registers[register] * state.clockSpeed / 60;
   },
   ADD: (state: ICPUState, register: number, value: number) => {
     state.registers[register] += value;
@@ -138,10 +153,13 @@ const newState = (): ICPUState => {
     specialReg: new Uint16Array(SpecialRegs.__SIZE),
     memory: new Uint8Array(0x1000),
     stack: new Uint16Array(48),
-    displayBuffer: new Uint8Array(32 * 64),
+    displayBuffer: new Uint8Array(32 * (64 / 8)),
     currentInstruction: 0x00,
     halt: false,
     execThunk: () => {},
+    ST: 0,
+    DT: 0,
+    clockSpeed: 500,
   };
   state.specialReg[SpecialRegs.PC] = 0x200;
   for (let i = 0; i < 16; i++) {
@@ -231,13 +249,19 @@ const cpu_decode = (state: ICPUState) => {
       const register = (state.currentInstruction & 0x0f00) >> 8;
       if (subType === 0x29) {
         state.execThunk = () => ops.LD_F(state, register);
-        break;
+      } else if (subType === 0x07) {
+        state.execThunk = () => ops.LD_VX_DT(state, register);
+      } else if (subType === 0x15) {
+        state.execThunk = () => ops.LD_DT(state, register);
+      } else if (subType === 0x18) {
+        state.execThunk = () => ops.LD_ST(state, register);
       } else {
         state.halt = true;
         throw new Error(
           `Unkown instruction: ${state.currentInstruction.toString(16)}`
         );
       }
+      break;
     }
     default: {
       state.halt = true;
@@ -255,6 +279,14 @@ const cpu_exec = (state: ICPUState) => {
     return;
   }
   state.specialReg[SpecialRegs.PC] += 2;
+
+  if(state.DT) {
+    state.DT--;
+  }
+
+  if(state.ST) {
+    state.ST--;
+  }
 };
 
 export { cpu_exec, cpu_fetch, newState, loadRom, cpu_decode };
