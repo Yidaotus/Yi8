@@ -1,13 +1,17 @@
 <html>
-  <head>
-    <script type="module">
-      import * as i from './built/index.js';
-      document.getElementById("fileinput").onchange = (event) => i.readFile(event.target);
-    </script>
-  </head>
-  <body>
-    <h1>Yi-8</h1>
-    <input type="file" id="fileinput" />
-    <canvas id="canvas"></canvas>
-  </body>
+	<head>
+		<script type="module">
+			import * as i from './built/index.js';
+			document.getElementById('fileinput').onchange = (event) =>
+				i.readFile(event.target);
+		</script>
+	</head>
+	<body>
+		<h1>Yi-8</h1>
+		<input type="file" id="fileinput" />
+		<canvas
+			id="canvas"
+			style="border-color: red; border-style: double;"
+		></canvas>
+	</body>
 </html>
