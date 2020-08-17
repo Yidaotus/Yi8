@@ -1,4 +1,4 @@
-interface ICPUState {
+export interface ICPUState {
 	registers: Uint8Array;
 	specialReg: Uint16Array;
 	memory: Uint8Array;
@@ -11,6 +11,8 @@ interface ICPUState {
 	ST: number;
 	clockSpeed: number;
 	prevPC: number;
+	tick: number;
+	keys: Array<boolean>;
 }
 
 const DIGIT_SPRITES: { [index: number]: number[] } = {
@@ -64,7 +66,7 @@ type OpCode =
 	| 'CALL'
 	| 'LD_I'
 	| 'DRAW'
-	| 'ADD'
+	| 'ADD_B'
 	| 'SE'
 	| 'SNE'
 	| 'JMP'
@@ -73,7 +75,18 @@ type OpCode =
 	| 'LD_DT'
 	| 'LD_VX_DT'
 	| 'LD_ST'
-	| 'CLS';
+	| 'CLS'
+	| 'SKNP'
+	| 'SKP'
+	| 'OR'
+	| 'AND'
+	| 'XOR'
+	| 'ADD'
+	| 'SUB'
+	| 'SHR'
+	| 'SUBN'
+	| 'SHL'
+	| 'LD_VX_VY';
 type StateModifier = (state: ICPUState, ...rest: unknown[]) => void;
 type IOpCodes = {
 	[key in OpCode]: StateModifier;
@@ -128,7 +141,7 @@ const ops: IOpCodes = {
 	LD_ST: (state: ICPUState, register: number) => {
 		state.ST = (state.registers[register] * state.clockSpeed) / 60;
 	},
-	ADD: (state: ICPUState, register: number, value: number) => {
+	ADD_B: (state: ICPUState, register: number, value: number) => {
 		state.registers[register] += value;
 	},
 	JMP: (state: ICPUState, address: number) => {
@@ -163,7 +176,7 @@ const ops: IOpCodes = {
 			const spriteAddress = state.specialReg[SpecialRegs.I] + y;
 			const spriteByte = state.memory[spriteAddress];
 			for (let b = 0; b < 8; b++) {
-				const spriteBit = (spriteByte >> (7 - b)) & 0x1 ;
+				const spriteBit = (spriteByte >> (7 - b)) & 0x1;
 				const screenBit = state.displayBuffer[(sy + y) * 64 + (sx + b)];
 				const newBit = screenBit ^ spriteBit;
 
@@ -182,6 +195,79 @@ const ops: IOpCodes = {
 
 		state.specialReg[SpecialRegs.PC] += 2;
 	},
+	SKNP: (state: ICPUState, register: number) => {
+		const key = state.registers[register];
+		const isDown = state.keys[key];
+		const pcInc = !isDown ? 2 * 2 : 2;
+		state.specialReg[SpecialRegs.PC] += pcInc;
+	},
+	SKP: (state: ICPUState, register: number) => {
+		const key = state.registers[register];
+		const isDown = state.keys[key];
+		const pcInc = isDown ? 2 * 2 : 2;
+		state.specialReg[SpecialRegs.PC] += pcInc;
+	},
+	OR: (state: ICPUState, vx: number, vy: number) => {
+		const vx_v = state.registers[vx];
+		const vy_v = state.registers[vy];
+
+		state.registers[vx] = vx_v | vy_v;
+	},
+	AND: (state: ICPUState, vx: number, vy: number) => {
+		const vx_v = state.registers[vx];
+		const vy_v = state.registers[vy];
+
+		state.registers[vx] = vx_v & vy_v;
+	},
+	XOR: (state: ICPUState, vx: number, vy: number) => {
+		const vx_v = state.registers[vx];
+		const vy_v = state.registers[vy];
+
+		state.registers[vx] = vx_v ^ vy_v;
+	},
+	ADD: (state: ICPUState, vx: number, vy: number) => {
+		const vx_v = state.registers[vx];
+		const vy_v = state.registers[vy];
+		const carry = vx_v + vy_v > 255 ? 1 : 0;
+
+		state.registers[vx] = (vx_v + vy_v) & 0xff;
+		state.registers[DataRegisters.VF] = carry;
+	},
+	SUB: (state: ICPUState, vx: number, vy: number) => {
+		const vx_v = state.registers[vx];
+		const vy_v = state.registers[vy];
+		const carry = vx_v > vy_v ? 1 : 0;
+
+		state.registers[vx] = vx_v - vy_v;
+		state.registers[DataRegisters.VF] = carry;
+	},
+	SHR: (state: ICPUState, vx: number, vy: number) => {
+		const vx_v = state.registers[vx];
+		const vy_v = state.registers[vy];
+		const carry = vx_v & 0x1;
+
+		state.registers[vx] = vx_v >> 1;
+		state.registers[DataRegisters.VF] = carry;
+	},
+	SUBN: (state: ICPUState, vx: number, vy: number) => {
+		const vx_v = state.registers[vx];
+		const vy_v = state.registers[vy];
+		const carry = vy_v > vx_v ? 1 : 0;
+
+		state.registers[vx] = vy_v - vx_v;
+		state.registers[DataRegisters.VF] = carry;
+	},
+	SHL: (state: ICPUState, vx: number, vy: number) => {
+		const vx_v = state.registers[vx];
+		const vy_v = state.registers[vy];
+		const carry = (vx_v & 0x80) >> 7;
+
+		state.registers[vx] = vx_v << 1;
+		state.registers[DataRegisters.VF] = carry;
+	},
+	LD_VX_VY: (state: ICPUState, vx: number, vy: number) => {
+		state.registers[vx] = state.registers[vy];
+	},
 };
 
 const newState = (): ICPUState => {
@@ -198,6 +284,8 @@ const newState = (): ICPUState => {
 		DT: 0,
 		clockSpeed: 500,
 		prevPC: 0x00,
+		tick: 0,
+		keys: new Array<boolean>(),
 	};
 	state.specialReg[SpecialRegs.PC] = 0x200;
 	for (let i = 0; i < 16; i++) {
@@ -273,7 +361,59 @@ const cpu_decode = (state: ICPUState) => {
 		case 0x7: {
 			const register = (state.currentInstruction & 0x0f00) >> 8;
 			const value = state.currentInstruction & 0x00ff;
-			state.execThunk = () => ops.ADD(state, register, value);
+			state.execThunk = () => ops.ADD_B(state, register, value);
+			break;
+		}
+		case 0x8: {
+			const vx = (state.currentInstruction & 0x0f00) >> 8;
+			const vy = (state.currentInstruction & 0x00f0) >> 4;
+			const subType = state.currentInstruction & 0x000f;
+			switch (subType) {
+				case 0x0: {
+					state.execThunk = () => ops.LD_VX_VY(state, vx, vy);
+					break;
+				}
+				case 0x1: {
+					state.execThunk = () => ops.OR(state, vx, vy);
+					break;
+				}
+				case 0x2: {
+					state.execThunk = () => ops.AND(state, vx, vy);
+					break;
+				}
+				case 0x3: {
+					state.execThunk = () => ops.XOR(state, vx, vy);
+					break;
+				}
+				case 0x4: {
+					state.execThunk = () => ops.ADD(state, vx, vy);
+					break;
+				}
+				case 0x5: {
+					state.execThunk = () => ops.SUB(state, vx, vy);
+					break;
+				}
+				case 0x6: {
+					state.execThunk = () => ops.SHR(state, vx, vy);
+					break;
+				}
+				case 0x7: {
+					state.execThunk = () => ops.SUBN(state, vx, vy);
+					break;
+				}
+				case 0xe: {
+					state.execThunk = () => ops.SHL(state, vx, vy);
+					break;
+				}
+				default: {
+					state.halt = true;
+					throw new Error(
+						`Unkown instruction: ${state.currentInstruction.toString(
+							16
+						)}`
+					);
+				}
+			}
 			break;
 		}
 		case 0xa: {
@@ -286,6 +426,23 @@ const cpu_decode = (state: ICPUState) => {
 			const y = (state.currentInstruction & 0x00f0) >> 4;
 			const height = state.currentInstruction & 0x000f;
 			state.execThunk = () => ops.DRAW(state, x, y, height);
+			break;
+		}
+		case 0xe: {
+			const subType = state.currentInstruction & 0x00ff;
+			const register = (state.currentInstruction & 0x0f00) >> 8;
+			if (subType === 0x9e) {
+				state.execThunk = () => ops.SKP(state, register);
+			} else if (subType === 0xa1) {
+				state.execThunk = () => ops.SKNP(state, register);
+			} else {
+				state.halt = true;
+				throw new Error(
+					`Unkown instruction: ${state.currentInstruction.toString(
+						16
+					)}`
+				);
+			}
 			break;
 		}
 		case 0xf: {
@@ -330,7 +487,7 @@ const cpu_exec = (state: ICPUState) => {
 	state.execThunk();
 	// Increment on every but CALL AND BRANCH ops
 	const type = (state.currentInstruction & 0xf000) >> 12;
-	if (type <= 0x4) {
+	if (type <= 0x4 || type === 0xe) {
 		return;
 	}
 	state.specialReg[SpecialRegs.PC] += 2;
@@ -342,6 +499,7 @@ const cpu_exec = (state: ICPUState) => {
 	if (state.ST) {
 		state.ST--;
 	}
+	state.tick++;
 };
 
 export { cpu_exec, cpu_fetch, newState, loadRom, cpu_decode };
