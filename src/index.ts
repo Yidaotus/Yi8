@@ -110,7 +110,9 @@ export function readFile(input: HTMLInputElement) {
 	reader.readAsArrayBuffer(file);
 	reader.onload = function () {
 		CPU.loadRom(reader.result as ArrayBuffer, state);
-		timer = setInterval(tick, 2);
+		const msTickRate = 1000/state.clockSpeed;
+		
+		timer = setInterval(tick, msTickRate);
 		input.value = null;
 	};
 	reader.onerror = function () {
