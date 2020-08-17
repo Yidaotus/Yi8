@@ -16,22 +16,22 @@ export interface ICPUState {
 }
 
 const DIGIT_SPRITES: { [index: number]: number[] } = {
-	0: [0xf0, 0x10, 0xf0, 0x80, 0xf0],
-	1: [0xf0, 0x10, 0xf0, 0x80, 0xf0],
+	0: [0xf0, 0x90, 0x90, 0x90, 0xf0],
+	1: [0x20, 0x60, 0x20, 0x20, 0x70],
 	2: [0xf0, 0x10, 0xf0, 0x80, 0xf0],
 	3: [0xf0, 0x10, 0xf0, 0x10, 0xf0],
 	4: [0x90, 0x90, 0xf0, 0x10, 0x10],
-	5: [0xf0, 0x90, 0x90, 0x90, 0xf0],
-	6: [0xf0, 0x90, 0x90, 0x90, 0xf0],
-	7: [0xf0, 0x90, 0x90, 0x90, 0xf0],
-	8: [0xf0, 0x90, 0x90, 0x90, 0xf0],
-	9: [0xf0, 0x90, 0x90, 0x90, 0xf0],
-	0xa: [0xf0, 0x90, 0x90, 0x90, 0xf0],
-	0xb: [0xf0, 0x90, 0x90, 0x90, 0xf0],
-	0xc: [0xf0, 0x90, 0x90, 0x90, 0xf0],
-	0xd: [0xf0, 0x90, 0x90, 0x90, 0xf0],
-	0xe: [0xf0, 0x90, 0x90, 0x90, 0xf0],
-	0xf: [0xf0, 0x90, 0x90, 0x90, 0xf0],
+	5: [0xf0, 0x80, 0xf0, 0x10, 0xf0],
+	6: [0xf0, 0x80, 0xf0, 0x90, 0xf0],
+	7: [0xf0, 0x10, 0x20, 0x40, 0x40],
+	8: [0xf0, 0x90, 0xf0, 0x90, 0xf0],
+	9: [0xf0, 0x90, 0xf0, 0x10, 0xf0],
+	0xa: [0xf0, 0x90, 0xf0, 0x90, 0x90],
+	0xb: [0xe0, 0x90, 0xe0, 0x90, 0xe0],
+	0xc: [0xf0, 0x80, 0x80, 0x80, 0xf0],
+	0xd: [0xe0, 0x90, 0x90, 0x90, 0xe0],
+	0xe: [0xf0, 0x80, 0xf0, 0x80, 0xf0],
+	0xf: [0xf0, 0x80, 0xf0, 0x80, 0x80],
 };
 
 enum SpecialRegs {
@@ -72,6 +72,7 @@ type OpCode =
 	| 'SNE_B'
 	| 'SNE_VX'
 	| 'JMP'
+	| 'JMP_V0'
 	| 'RET'
 	| 'LD_F'
 	| 'LD_DT'
@@ -134,14 +135,15 @@ const ops: IOpCodes = {
 		//Make it so you can't call SpecialRegs.I on normal regs
 		state.specialReg[SpecialRegs.I] = value;
 	},
-	LD_F: (state: ICPUState, character: number) => {
-		state.specialReg[SpecialRegs.I] = character * 5;
+	LD_F: (state: ICPUState, rx: number) => {
+		const vx = state.registers[rx];
+		state.specialReg[SpecialRegs.I] = vx * 5;
 	},
 	LD_DT: (state: ICPUState, rx: number) => {
 		state.DT = (state.registers[rx] * state.clockSpeed) / 60;
 	},
 	LD_VX_DT: (state: ICPUState, rx: number) => {
-		state.registers[rx] = Math.round(state.DT * (60 / state.clockSpeed));
+		state.registers[rx] = Math.floor(state.DT * (60 / state.clockSpeed));
 	},
 	LD_ST: (state: ICPUState, rx: number) => {
 		state.ST = (state.registers[rx] * state.clockSpeed) / 60;
@@ -151,6 +153,10 @@ const ops: IOpCodes = {
 	},
 	JMP: (state: ICPUState, address: number) => {
 		state.specialReg[SpecialRegs.PC] = address;
+	},
+	JMP_V0: (state: ICPUState, value: number) => {
+		const v0 = state.registers[DataRegisters.V0];
+		state.specialReg[SpecialRegs.PC] = v0 + value;
 	},
 	SE_B: (state: ICPUState, rx: number, value: number) => {
 		let vx = state.registers[rx];
@@ -167,14 +173,14 @@ const ops: IOpCodes = {
 	},
 	SNE_B: (state: ICPUState, rx: number, value: number) => {
 		let vx = state.registers[rx];
-		const skip = vx !== value ? 2 * 2 : 2;
+		const skip = vx !== value ? 4 : 2;
 
 		state.specialReg[SpecialRegs.PC] += skip;
 	},
 	SNE_VX: (state: ICPUState, rx: number, ry: number) => {
 		const vx = state.registers[rx];
 		const vy = state.registers[ry];
-		const skip = vx !== vy ? 2 * 2 : 2;
+		const skip = vx !== vy ? 4 : 2;
 
 		state.specialReg[SpecialRegs.PC] += skip;
 	},
@@ -263,9 +269,9 @@ const ops: IOpCodes = {
 	SHR: (state: ICPUState, rx: number, ry: number) => {
 		const vx = state.registers[rx];
 		const vy = state.registers[ry];
-		const carry = vx & 0x1;
+		const carry = vy & 0x1;
 
-		state.registers[rx] = vx >> 1;
+		state.registers[rx] = (vy >> 1) & 0xff;
 		state.registers[DataRegisters.VF] = carry;
 	},
 	SUBN: (state: ICPUState, rx: number, ry: number) => {
@@ -273,15 +279,15 @@ const ops: IOpCodes = {
 		const vy = state.registers[ry];
 		const carry = vy > vx ? 1 : 0;
 
-		state.registers[rx] = vx - vy;
+		state.registers[rx] = vy - vx;
 		state.registers[DataRegisters.VF] = carry;
 	},
 	SHL: (state: ICPUState, rx: number, ry: number) => {
 		const vx = state.registers[rx];
 		const vy = state.registers[ry];
-		const carry = (vx & 0x80) >> 7;
+		const carry = (vy & 0x80) >> 7;
 
-		state.registers[rx] = vx << 1;
+		state.registers[rx] = (vy << 1) & 0xff;
 		state.registers[DataRegisters.VF] = carry;
 	},
 	LD_VX_VY: (state: ICPUState, rx: number, ry: number) => {
@@ -296,13 +302,13 @@ const ops: IOpCodes = {
 		state.specialReg[SpecialRegs.I] += vx;
 	},
 	LD_VX_I: (state: ICPUState, rx: number) => {
-		for (let i = 0; i < rx; i++) {
+		for (let i = 0; i <= rx; i++) {
 			const i_addr = state.specialReg[SpecialRegs.I] + i;
 			state.registers[i] = state.memory[i_addr];
 		}
 	},
 	LD_I_VX: (state: ICPUState, rx: number) => {
-		for (let i = 0; i < rx; i++) {
+		for (let i = 0; i <= rx; i++) {
 			const i_addr = state.specialReg[SpecialRegs.I] + i;
 			state.memory[i_addr] = state.registers[i];
 		}
@@ -315,8 +321,8 @@ const ops: IOpCodes = {
 
 		const i_addr = state.specialReg[SpecialRegs.I];
 		state.memory[i_addr] = bcd_h;
-		state.memory[i_addr+1] = bcd_t;
-		state.memory[i_addr+2] = bcd_o;
+		state.memory[i_addr + 1] = bcd_t;
+		state.memory[i_addr + 2] = bcd_o;
 	},
 };
 
@@ -338,6 +344,7 @@ const newState = (): ICPUState => {
 		keys: new Array<boolean>(),
 	};
 	state.specialReg[SpecialRegs.PC] = 0x200;
+
 	for (let i = 0; i < 16; i++) {
 		for (let x = 0; x < 5; x++) {
 			state.memory[i * 5 + x] = DIGIT_SPRITES[i][x];
@@ -483,6 +490,11 @@ const cpu_decode = (state: ICPUState) => {
 			state.execThunk = () => ops.LD_I(state, value);
 			break;
 		}
+		case 0xb: {
+			const value = state.currentInstruction & 0x0fff;
+			state.execThunk = () => ops.JMP_V0(state, value);
+			break;
+		}
 		case 0xc: {
 			const rx = (state.currentInstruction & 0x0f00) >> 8;
 			const value = state.currentInstruction & 0x00ff;
@@ -551,19 +563,11 @@ const cpu_decode = (state: ICPUState) => {
 	}
 };
 const cpu_exec = (state: ICPUState) => {
-	const pc = state.specialReg[SpecialRegs.PC];
-	if (pc === state.prevPC) {
-		state.halt = true;
-		throw new Error(
-			`Infinite loop detected: ${state.currentInstruction.toString(16)}`
-		);
-	}
-	state.prevPC = state.specialReg[SpecialRegs.PC];
-
+	state.tick++;
 	state.execThunk();
 	// Increment on every but CALL AND BRANCH ops
 	const type = (state.currentInstruction & 0xf000) >> 12;
-	if (type <= 0x5 || type === 0xe) {
+	if (type <= 0x5 || type === 0xe || type === 0xb) {
 		return;
 	}
 	state.specialReg[SpecialRegs.PC] += 2;
@@ -575,7 +579,6 @@ const cpu_exec = (state: ICPUState) => {
 	if (state.ST) {
 		state.ST--;
 	}
-	state.tick++;
 };
 
 export { cpu_exec, cpu_fetch, newState, loadRom, cpu_decode };

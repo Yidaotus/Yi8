@@ -110,9 +110,9 @@ export function readFile(input: HTMLInputElement) {
 	reader.readAsArrayBuffer(file);
 	reader.onload = function () {
 		CPU.loadRom(reader.result as ArrayBuffer, state);
-		const msTickRate = 1000/state.clockSpeed;
-		
-		timer = setInterval(tick, msTickRate);
+		const msTickRate = 1000 / state.clockSpeed;
+
+		let timer = requestAnimationFrame(tick);
 		input.value = null;
 	};
 	reader.onerror = function () {
@@ -122,42 +122,40 @@ export function readFile(input: HTMLInputElement) {
 
 const tick = () => {
 	if (!state.halt) {
-		try {
-			CPU.cpu_fetch(state);
-			CPU.cpu_decode(state);
-			CPU.cpu_exec(state);
+		for (let i = 0; i < state.clockSpeed / 60; i++) {
+			try {
+				state.keys[1] = KeyInputBuffer[KeyCodes.ONE];
+				state.keys[2] = KeyInputBuffer[KeyCodes.TWO];
+				state.keys[3] = KeyInputBuffer[KeyCodes.THREE];
+				state.keys[0xc] = KeyInputBuffer[KeyCodes.FOUR];
 
-			let i = 0;
+				state.keys[4] = KeyInputBuffer[KeyCodes.Q];
+				state.keys[5] = KeyInputBuffer[KeyCodes.W];
+				state.keys[6] = KeyInputBuffer[KeyCodes.E];
+				state.keys[0xd] = KeyInputBuffer[KeyCodes.R];
 
-			state.keys[1] = KeyInputBuffer[KeyCodes.ONE];
-			state.keys[2] = KeyInputBuffer[KeyCodes.TWO];
-			state.keys[3] = KeyInputBuffer[KeyCodes.THREE];
-			state.keys[0xc] = KeyInputBuffer[KeyCodes.FOUR];
+				state.keys[7] = KeyInputBuffer[KeyCodes.A];
+				state.keys[8] = KeyInputBuffer[KeyCodes.S];
+				state.keys[9] = KeyInputBuffer[KeyCodes.D];
+				state.keys[0xe] = KeyInputBuffer[KeyCodes.F];
 
-			state.keys[4] = KeyInputBuffer[KeyCodes.Q];
-			state.keys[5] = KeyInputBuffer[KeyCodes.W];
-			state.keys[6] = KeyInputBuffer[KeyCodes.E];
-			state.keys[0xd] = KeyInputBuffer[KeyCodes.R];
+				state.keys[0xa] = KeyInputBuffer[KeyCodes.Y];
+				state.keys[0] = KeyInputBuffer[KeyCodes.X];
+				state.keys[0xb] = KeyInputBuffer[KeyCodes.C];
+				state.keys[0xf] = KeyInputBuffer[KeyCodes.V];
 
-			state.keys[7] = KeyInputBuffer[KeyCodes.A];
-			state.keys[8] = KeyInputBuffer[KeyCodes.S];
-			state.keys[9] = KeyInputBuffer[KeyCodes.D];
-			state.keys[0xe] = KeyInputBuffer[KeyCodes.F];
-
-			state.keys[0xa] = KeyInputBuffer[KeyCodes.Y];
-			state.keys[0] = KeyInputBuffer[KeyCodes.X];
-			state.keys[0xb] = KeyInputBuffer[KeyCodes.C];
-			state.keys[0xf] = KeyInputBuffer[KeyCodes.V];
-
-			renderDP(state.displayBuffer, imgData);
-			renderer.getContext('2d').putImageData(imgData, 0, 0);
-			ctx.drawImage(renderer, 0, 0, 64 * 8, 32 * 8);
-		} catch (err) {
-			debugDP(state.displayBuffer);
-			console.error(err);
-			clearInterval(timer);
+				CPU.cpu_fetch(state);
+				CPU.cpu_decode(state);
+				CPU.cpu_exec(state);
+			} catch (err) {
+				debugDP(state.displayBuffer);
+				console.error(err);
+				return;
+			}
 		}
-	} else {
-		clearInterval(timer);
+		renderDP(state.displayBuffer, imgData);
+		renderer.getContext('2d').putImageData(imgData, 0, 0);
+		ctx.drawImage(renderer, 0, 0, 64 * 8, 32 * 8);
+		requestAnimationFrame(tick);
 	}
 };
