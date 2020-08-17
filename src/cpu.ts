@@ -92,6 +92,7 @@ type OpCode =
 	| 'SHL'
 	| 'RND'
 	| 'LD_B_VX'
+	| 'LD_VX_K'
 	| 'LD_VX_VY'
 	| 'LD_VX_I'
 	| 'LD_I_VX';
@@ -313,6 +314,9 @@ const ops: IOpCodes = {
 			state.memory[i_addr] = state.registers[i];
 		}
 	},
+	LD_VX_K: (state: ICPUState, rx: number) => {
+		state.registers[rx] = 0x01;
+	},
 	LD_B_VX: (state: ICPUState, rx: number) => {
 		const vx = state.registers[rx];
 		const bcd_h = Math.floor(vx / 100);
@@ -338,7 +342,7 @@ const newState = (): ICPUState => {
 		execThunk: () => {},
 		ST: 0,
 		DT: 0,
-		clockSpeed: 500,
+		clockSpeed: 800,
 		prevPC: 0x00,
 		tick: 0,
 		keys: new Array<boolean>(),
@@ -378,14 +382,9 @@ const cpu_decode = (state: ICPUState) => {
 				state.execThunk = () => ops.CLS(state);
 			} else {
 				state.execThunk = () => {};
-				state.halt = true;
-				throw new Error(
-					`Unkown instruction: ${state.currentInstruction.toString(
-						16
-					)}`
-				);
+				//SYS CALL IGNORE;
 			}
-			return;
+			break;
 		}
 		case 0x1: {
 			const address = state.currentInstruction & 0x0fff;
@@ -528,7 +527,9 @@ const cpu_decode = (state: ICPUState) => {
 		case 0xf: {
 			const subType = state.currentInstruction & 0x00ff;
 			const rx = (state.currentInstruction & 0x0f00) >> 8;
-			if (subType === 0x29) {
+			if (subType === 0x0a) {
+				state.execThunk = () => ops.LD_VX_K(state, rx);
+			} else if (subType === 0x29) {
 				state.execThunk = () => ops.LD_F(state, rx);
 			} else if (subType === 0x07) {
 				state.execThunk = () => ops.LD_VX_DT(state, rx);
@@ -567,11 +568,7 @@ const cpu_exec = (state: ICPUState) => {
 	state.execThunk();
 	// Increment on every but CALL AND BRANCH ops
 	const type = (state.currentInstruction & 0xf000) >> 12;
-	if (type <= 0x5 || type === 0xe || type === 0xb) {
-		return;
-	}
-	state.specialReg[SpecialRegs.PC] += 2;
-
+	const subtype = state.currentInstruction & 0x00ff;
 	if (state.DT) {
 		state.DT--;
 	}
@@ -579,6 +576,13 @@ const cpu_exec = (state: ICPUState) => {
 	if (state.ST) {
 		state.ST--;
 	}
+	if (type === 0x0 && subtype !== 0xe0 && subtype !== 0xee) {
+		state.specialReg[SpecialRegs.PC] += 2;
+	}
+	if (type <= 0x5 || type === 0xe || type === 0xb) {
+		return;
+	}
+	state.specialReg[SpecialRegs.PC] += 2;
 };
 
 export { cpu_exec, cpu_fetch, newState, loadRom, cpu_decode };

@@ -112,6 +112,7 @@ export function readFile(input: HTMLInputElement) {
 		CPU.loadRom(reader.result as ArrayBuffer, state);
 		const msTickRate = 1000 / state.clockSpeed;
 
+		t1 = performance.now();
 		let timer = requestAnimationFrame(tick);
 		input.value = null;
 	};
@@ -120,9 +121,12 @@ export function readFile(input: HTMLInputElement) {
 	};
 }
 
+let t1 = 0;
 const tick = () => {
+	const delta = performance.now() - t1;	
+	const ticks = (delta / state.clockSpeed)*1000;
 	if (!state.halt) {
-		for (let i = 0; i < state.clockSpeed / 60; i++) {
+		for (let i = 0; i < ticks; i++) {
 			try {
 				state.keys[1] = KeyInputBuffer[KeyCodes.ONE];
 				state.keys[2] = KeyInputBuffer[KeyCodes.TWO];
@@ -153,6 +157,7 @@ const tick = () => {
 				return;
 			}
 		}
+		t1 = performance.now();
 		renderDP(state.displayBuffer, imgData);
 		renderer.getContext('2d').putImageData(imgData, 0, 0);
 		ctx.drawImage(renderer, 0, 0, 64 * 8, 32 * 8);
