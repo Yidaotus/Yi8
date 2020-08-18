@@ -427,44 +427,44 @@ const cpu_decode = (state: ICPUState) => {
 			break;
 		}
 		case 0x8: {
-			const vx = (state.currentInstruction & 0x0f00) >> 8;
-			const vy = (state.currentInstruction & 0x00f0) >> 4;
+			const rx = (state.currentInstruction & 0x0f00) >> 8;
+			const ry = (state.currentInstruction & 0x00f0) >> 4;
 			const subType = state.currentInstruction & 0x000f;
 			switch (subType) {
 				case 0x0: {
-					state.execThunk = () => ops.LD_VX_VY(state, vx, vy);
+					state.execThunk = () => ops.LD_VX_VY(state, rx, ry);
 					break;
 				}
 				case 0x1: {
-					state.execThunk = () => ops.OR(state, vx, vy);
+					state.execThunk = () => ops.OR(state, rx, ry);
 					break;
 				}
 				case 0x2: {
-					state.execThunk = () => ops.AND(state, vx, vy);
+					state.execThunk = () => ops.AND(state, rx, ry);
 					break;
 				}
 				case 0x3: {
-					state.execThunk = () => ops.XOR(state, vx, vy);
+					state.execThunk = () => ops.XOR(state, rx, ry);
 					break;
 				}
 				case 0x4: {
-					state.execThunk = () => ops.ADD(state, vx, vy);
+					state.execThunk = () => ops.ADD(state, rx, ry);
 					break;
 				}
 				case 0x5: {
-					state.execThunk = () => ops.SUB(state, vx, vy);
+					state.execThunk = () => ops.SUB(state, rx, ry);
 					break;
 				}
 				case 0x6: {
-					state.execThunk = () => ops.SHR(state, vx, vy);
+					state.execThunk = () => ops.SHR(state, rx, ry);
 					break;
 				}
 				case 0x7: {
-					state.execThunk = () => ops.SUBN(state, vx, vy);
+					state.execThunk = () => ops.SUBN(state, rx, ry);
 					break;
 				}
 				case 0xe: {
-					state.execThunk = () => ops.SHL(state, vx, vy);
+					state.execThunk = () => ops.SHL(state, rx, ry);
 					break;
 				}
 				default: {
@@ -510,48 +510,61 @@ const cpu_decode = (state: ICPUState) => {
 		case 0xe: {
 			const subType = state.currentInstruction & 0x00ff;
 			const rx = (state.currentInstruction & 0x0f00) >> 8;
-			if (subType === 0x9e) {
-				state.execThunk = () => ops.SKP(state, rx);
-			} else if (subType === 0xa1) {
-				state.execThunk = () => ops.SKNP(state, rx);
-			} else {
-				state.halt = true;
-				throw new Error(
-					`Unkown instruction: ${state.currentInstruction.toString(
-						16
-					)}`
-				);
+			switch (subType) {
+				case 0x9e:
+					state.execThunk = () => ops.SKP(state, rx);
+					break;
+				case 0xa1:
+					state.execThunk = () => ops.SKNP(state, rx);
+					break;
+				default:
+					state.halt = true;
+					throw new Error(
+						`Unkown instruction: ${state.currentInstruction.toString(
+							16
+						)}`
+					);
 			}
 			break;
 		}
 		case 0xf: {
 			const subType = state.currentInstruction & 0x00ff;
 			const rx = (state.currentInstruction & 0x0f00) >> 8;
-			if (subType === 0x0a) {
-				state.execThunk = () => ops.LD_VX_K(state, rx);
-			} else if (subType === 0x29) {
-				state.execThunk = () => ops.LD_F(state, rx);
-			} else if (subType === 0x07) {
-				state.execThunk = () => ops.LD_VX_DT(state, rx);
-			} else if (subType === 0x15) {
-				state.execThunk = () => ops.LD_DT(state, rx);
-			} else if (subType === 0x18) {
-				state.execThunk = () => ops.LD_ST(state, rx);
-			} else if (subType === 0x1e) {
-				state.execThunk = () => ops.ADD_I(state, rx);
-			} else if (subType === 0x33) {
-				state.execThunk = () => ops.LD_B_VX(state, rx);
-			} else if (subType === 0x55) {
-				state.execThunk = () => ops.LD_I_VX(state, rx);
-			} else if (subType === 0x65) {
-				state.execThunk = () => ops.LD_VX_I(state, rx);
-			} else {
-				state.halt = true;
-				throw new Error(
-					`Unkown instruction: ${state.currentInstruction.toString(
-						16
-					)}`
-				);
+			switch (subType) {
+				case 0x0a:
+					state.execThunk = () => ops.LD_VX_K(state, rx);
+					break;
+				case 0x29:
+					state.execThunk = () => ops.LD_F(state, rx);
+					break;
+				case 0x07:
+					state.execThunk = () => ops.LD_VX_DT(state, rx);
+					break;
+				case 0x15:
+					state.execThunk = () => ops.LD_DT(state, rx);
+					break;
+				case 0x18:
+					state.execThunk = () => ops.LD_ST(state, rx);
+					break;
+				case 0x1e:
+					state.execThunk = () => ops.ADD_I(state, rx);
+					break;
+				case 0x33:
+					state.execThunk = () => ops.LD_B_VX(state, rx);
+					break;
+				case 0x55:
+					state.execThunk = () => ops.LD_I_VX(state, rx);
+					break;
+				case 0x65:
+					state.execThunk = () => ops.LD_VX_I(state, rx);
+					break;
+				default:
+					state.halt = true;
+					throw new Error(
+						`Unkown instruction: ${state.currentInstruction.toString(
+							16
+						)}`
+					);
 			}
 			break;
 		}
