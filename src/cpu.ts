@@ -3,16 +3,32 @@ export interface ICPUState {
 	specialReg: Uint16Array;
 	memory: Uint8Array;
 	stack: Uint16Array;
-	displayBuffer: Uint8Array;
+	frameBuffer: Uint8Array;
 	currentInstruction: number;
 	halt: boolean;
 	execThunk(): void;
 	DT: number;
 	ST: number;
 	clockSpeed: number;
-	prevPC: number;
 	tick: number;
-	keys: Array<boolean>;
+	keys: [
+		boolean,
+		boolean,
+		boolean,
+		boolean,
+		boolean,
+		boolean,
+		boolean,
+		boolean,
+		boolean,
+		boolean,
+		boolean,
+		boolean,
+		boolean,
+		boolean,
+		boolean,
+		boolean
+	];
 }
 
 const DIGIT_SPRITES: { [index: number]: number[] } = {
@@ -61,152 +77,125 @@ enum DataRegisters {
 	__SIZE,
 }
 
-type OpCode =
-	| 'LD_B'
-	| 'CALL'
-	| 'LD_I'
-	| 'DRAW'
-	| 'ADD_B'
-	| 'SE_B'
-	| 'SE_VX'
-	| 'SNE_B'
-	| 'SNE_VX'
-	| 'JMP'
-	| 'JMP_V0'
-	| 'RET'
-	| 'LD_F'
-	| 'LD_DT'
-	| 'LD_VX_DT'
-	| 'LD_ST'
-	| 'CLS'
-	| 'SKNP'
-	| 'SKP'
-	| 'OR'
-	| 'AND'
-	| 'ADD_I'
-	| 'XOR'
-	| 'ADD'
-	| 'SUB'
-	| 'SHR'
-	| 'SUBN'
-	| 'SHL'
-	| 'RND'
-	| 'LD_B_VX'
-	| 'LD_VX_K'
-	| 'LD_VX_VY'
-	| 'LD_VX_I'
-	| 'LD_I_VX';
-type StateModifier = (state: ICPUState, ...rest: unknown[]) => void;
-type IOpCodes = {
-	[key in OpCode]: StateModifier;
-};
-
-type KeyCode =
-	| 0
-	| 1
-	| 2
-	| 3
-	| 4
-	| 5
-	| 6
-	| 7
-	| 8
-	| 9
-	| 0xa
-	| 0xb
-	| 0xc
-	| 0xd
-	| 0xe
-	| 0xf;
-type IKeyMap = {
-	[key in KeyCode]: boolean;
-};
+enum OPCode {
+	'LD_B',
+	'CALL',
+	'LD_I',
+	'DRAW',
+	'ADD_B',
+	'SE_B',
+	'SE_VX',
+	'SNE_B',
+	'SNE_VX',
+	'JMP',
+	'JMP_V0',
+	'RET',
+	'LD_F',
+	'LD_DT',
+	'LD_VX_DT',
+	'LD_ST',
+	'CLS',
+	'SKNP',
+	'SKP',
+	'OR',
+	'AND',
+	'ADD_I',
+	'XOR',
+	'ADD',
+	'SUB',
+	'SHR',
+	'SUBN',
+	'SHL',
+	'RND',
+	'LD_B_VX',
+	'LD_VX_K',
+	'LD_VX_VY',
+	'LD_VX_I',
+	'LD_I_VX',
+}
 
 const LOAD_ADDRESS = 0x200;
-const SCREEN = {
-	WIDTH: 64,
-	HEIGHT: 32,
-};
 
-const ops: IOpCodes = {
-	LD_B: (state: ICPUState, rx: number, value: number) => {
+const OPHandler = {
+	[OPCode.LD_B]: (state: ICPUState, rx: number, value: number) => {
 		state.registers[rx] = value;
 	},
-	LD_I: (state: ICPUState, value: number) => {
+	[OPCode.LD_I]: (state: ICPUState, value: number) => {
 		//Make it so you can't call SpecialRegs.I on normal regs
 		state.specialReg[SpecialRegs.I] = value;
 	},
-	LD_F: (state: ICPUState, rx: number) => {
+	[OPCode.LD_F]: (state: ICPUState, rx: number) => {
 		const vx = state.registers[rx];
 		state.specialReg[SpecialRegs.I] = vx * 5;
 	},
-	LD_DT: (state: ICPUState, rx: number) => {
-		state.DT = (state.registers[rx] * state.clockSpeed) / 60;
+	[OPCode.LD_DT]: (state: ICPUState, rx: number) => {
+		state.DT = state.registers[rx];
 	},
-	LD_VX_DT: (state: ICPUState, rx: number) => {
-		state.registers[rx] = Math.floor(state.DT * (60 / state.clockSpeed));
+	[OPCode.LD_VX_DT]: (state: ICPUState, rx: number) => {
+		state.registers[rx] = Math.round(state.DT);
 	},
-	LD_ST: (state: ICPUState, rx: number) => {
-		state.ST = (state.registers[rx] * state.clockSpeed) / 60;
+	[OPCode.LD_ST]: (state: ICPUState, rx: number) => {
+		state.ST = state.registers[rx];
 	},
-	ADD_B: (state: ICPUState, rx: number, value: number) => {
+	[OPCode.ADD_B]: (state: ICPUState, rx: number, value: number) => {
 		state.registers[rx] += value;
 	},
-	JMP: (state: ICPUState, address: number) => {
-		state.specialReg[SpecialRegs.PC] = address;
+	[OPCode.JMP]: (state: ICPUState, value: number) => {
+		state.specialReg[SpecialRegs.PC] = value;
 	},
-	JMP_V0: (state: ICPUState, value: number) => {
+	[OPCode.JMP_V0]: (state: ICPUState, value: number) => {
 		const v0 = state.registers[DataRegisters.V0];
 		state.specialReg[SpecialRegs.PC] = v0 + value;
 	},
-	SE_B: (state: ICPUState, rx: number, value: number) => {
+	[OPCode.SE_B]: (state: ICPUState, rx: number, value: number) => {
 		let vx = state.registers[rx];
 		const skip = vx === value ? 2 * 2 : 2;
 
 		state.specialReg[SpecialRegs.PC] += skip;
 	},
-	SE_VX: (state: ICPUState, rx: number, ry: number) => {
+	[OPCode.SE_VX]: (state: ICPUState, rx: number, ry: number) => {
 		const vx = state.registers[rx];
 		const vy = state.registers[ry];
 		const skip = vx === vy ? 2 * 2 : 2;
 
 		state.specialReg[SpecialRegs.PC] += skip;
 	},
-	SNE_B: (state: ICPUState, rx: number, value: number) => {
+	[OPCode.SNE_B]: (state: ICPUState, rx: number, value: number) => {
 		let vx = state.registers[rx];
 		const skip = vx !== value ? 4 : 2;
 
 		state.specialReg[SpecialRegs.PC] += skip;
 	},
-	SNE_VX: (state: ICPUState, rx: number, ry: number) => {
+	[OPCode.SNE_VX]: (state: ICPUState, rx: number, ry: number) => {
 		const vx = state.registers[rx];
 		const vy = state.registers[ry];
 		const skip = vx !== vy ? 4 : 2;
 
 		state.specialReg[SpecialRegs.PC] += skip;
 	},
-	CALL: (state: ICPUState, subroutine: number) => {
+	[OPCode.CALL]: (state: ICPUState, subroutine: number) => {
 		const SP = state.specialReg[SpecialRegs.SP]++;
 		state.stack[SP] = state.specialReg[SpecialRegs.PC] + 2;
 		state.specialReg[SpecialRegs.PC] = subroutine;
 	},
-	RET: (state: ICPUState) => {
+	[OPCode.RET]: (state: ICPUState) => {
 		const SP = --state.specialReg[SpecialRegs.SP];
 		state.specialReg[SpecialRegs.PC] = state.stack[SP];
 	},
-	DRAW: (state: ICPUState, vx: number, vy: number, height: number) => {
-		const sx = state.registers[vx];
-		const sy = state.registers[vy];
+	[OPCode.DRAW]: (state: ICPUState, rx: number, ry: number, value: number) => {
+		const sx = state.registers[rx];
+		const sy = state.registers[ry];
+		const height = value;
 		let flipped = false;
 		for (let y = 0; y < height; y++) {
 			const spriteAddress = state.specialReg[SpecialRegs.I] + y;
 			const spriteByte = state.memory[spriteAddress];
 			for (let b = 0; b < 8; b++) {
 				const spriteBit = (spriteByte >> (7 - b)) & 0x1;
-				const screenBit = state.displayBuffer[(sy + y) * 64 + (sx + b)];
+				const screenBit = state.frameBuffer[(sy + y) * 64 + (sx + b)];
 				const newBit = screenBit ^ spriteBit;
 
-				state.displayBuffer[(sy + y) * 64 + (sx + b)] = newBit;
+				state.frameBuffer[(sy + y) * 64 + (sx + b)] = newBit;
 
 				if (!flipped && spriteBit && !newBit) {
 					flipped = true;
@@ -216,42 +205,42 @@ const ops: IOpCodes = {
 
 		state.registers[DataRegisters.VF] = flipped ? 0x1 : 0x0;
 	},
-	CLS: (state: ICPUState) => {
-		state.displayBuffer.fill(0x00);
+	[OPCode.CLS]: (state: ICPUState) => {
+		state.frameBuffer.fill(0x00);
 
 		state.specialReg[SpecialRegs.PC] += 2;
 	},
-	SKNP: (state: ICPUState, rx: number) => {
+	[OPCode.SKNP]: (state: ICPUState, rx: number) => {
 		const key = state.registers[rx];
 		const isDown = state.keys[key];
 		const pcInc = !isDown ? 2 * 2 : 2;
 		state.specialReg[SpecialRegs.PC] += pcInc;
 	},
-	SKP: (state: ICPUState, rx: number) => {
+	[OPCode.SKP]: (state: ICPUState, rx: number) => {
 		const key = state.registers[rx];
 		const isDown = state.keys[key];
 		const pcInc = isDown ? 2 * 2 : 2;
 		state.specialReg[SpecialRegs.PC] += pcInc;
 	},
-	OR: (state: ICPUState, rx: number, ry: number) => {
+	[OPCode.OR]: (state: ICPUState, rx: number, ry: number) => {
 		const vx = state.registers[rx];
 		const vy = state.registers[ry];
 
 		state.registers[rx] = vx | vy;
 	},
-	AND: (state: ICPUState, rx: number, ry: number) => {
+	[OPCode.AND]: (state: ICPUState, rx: number, ry: number) => {
 		const vx = state.registers[rx];
 		const vy = state.registers[ry];
 
 		state.registers[rx] = vx & vy;
 	},
-	XOR: (state: ICPUState, rx: number, ry: number) => {
+	[OPCode.XOR]: (state: ICPUState, rx: number, ry: number) => {
 		const vx = state.registers[rx];
 		const vy = state.registers[ry];
 
 		state.registers[rx] = vx ^ vy;
 	},
-	ADD: (state: ICPUState, rx: number, ry: number) => {
+	[OPCode.ADD]: (state: ICPUState, rx: number, ry: number) => {
 		const vx = state.registers[rx];
 		const vy = state.registers[ry];
 		const carry = vx + vy > 255 ? 1 : 0;
@@ -259,7 +248,7 @@ const ops: IOpCodes = {
 		state.registers[rx] = (vx + vy) & 0xff;
 		state.registers[DataRegisters.VF] = carry;
 	},
-	SUB: (state: ICPUState, rx: number, ry: number) => {
+	[OPCode.SUB]: (state: ICPUState, rx: number, ry: number) => {
 		const vx = state.registers[rx];
 		const vy = state.registers[ry];
 		const carry = vx > vy ? 1 : 0;
@@ -267,7 +256,7 @@ const ops: IOpCodes = {
 		state.registers[rx] = vx - vy;
 		state.registers[DataRegisters.VF] = carry;
 	},
-	SHR: (state: ICPUState, rx: number, ry: number) => {
+	[OPCode.SHR]: (state: ICPUState, rx: number, ry: number) => {
 		const vx = state.registers[rx];
 		const vy = state.registers[ry];
 		const carry = vy & 0x1;
@@ -275,7 +264,7 @@ const ops: IOpCodes = {
 		state.registers[rx] = (vy >> 1) & 0xff;
 		state.registers[DataRegisters.VF] = carry;
 	},
-	SUBN: (state: ICPUState, rx: number, ry: number) => {
+	[OPCode.SUBN]: (state: ICPUState, rx: number, ry: number) => {
 		const vx = state.registers[rx];
 		const vy = state.registers[ry];
 		const carry = vy > vx ? 1 : 0;
@@ -283,7 +272,7 @@ const ops: IOpCodes = {
 		state.registers[rx] = vy - vx;
 		state.registers[DataRegisters.VF] = carry;
 	},
-	SHL: (state: ICPUState, rx: number, ry: number) => {
+	[OPCode.SHL]: (state: ICPUState, rx: number, ry: number) => {
 		const vx = state.registers[rx];
 		const vy = state.registers[ry];
 		const carry = (vy & 0x80) >> 7;
@@ -291,33 +280,33 @@ const ops: IOpCodes = {
 		state.registers[rx] = (vy << 1) & 0xff;
 		state.registers[DataRegisters.VF] = carry;
 	},
-	LD_VX_VY: (state: ICPUState, rx: number, ry: number) => {
+	[OPCode.LD_VX_VY]: (state: ICPUState, rx: number, ry: number) => {
 		state.registers[rx] = state.registers[ry];
 	},
-	RND: (state: ICPUState, rx: number, value: number) => {
+	[OPCode.RND]: (state: ICPUState, rx: number, value: number) => {
 		const rand = Math.random() * 0xff;
 		state.registers[rx] = rand & value;
 	},
-	ADD_I: (state: ICPUState, rx: number) => {
+	[OPCode.ADD_I]: (state: ICPUState, rx: number) => {
 		const vx = state.registers[rx];
 		state.specialReg[SpecialRegs.I] += vx;
 	},
-	LD_VX_I: (state: ICPUState, rx: number) => {
+	[OPCode.LD_VX_I]: (state: ICPUState, rx: number) => {
 		for (let i = 0; i <= rx; i++) {
 			const i_addr = state.specialReg[SpecialRegs.I] + i;
 			state.registers[i] = state.memory[i_addr];
 		}
 	},
-	LD_I_VX: (state: ICPUState, rx: number) => {
+	[OPCode.LD_I_VX]: (state: ICPUState, rx: number) => {
 		for (let i = 0; i <= rx; i++) {
 			const i_addr = state.specialReg[SpecialRegs.I] + i;
 			state.memory[i_addr] = state.registers[i];
 		}
 	},
-	LD_VX_K: (state: ICPUState, rx: number) => {
+	[OPCode.LD_VX_K]: (state: ICPUState, rx: number) => {
 		state.registers[rx] = 0x01;
 	},
-	LD_B_VX: (state: ICPUState, rx: number) => {
+	[OPCode.LD_B_VX]: (state: ICPUState, rx: number) => {
 		const vx = state.registers[rx];
 		const bcd_h = Math.floor(vx / 100);
 		const bcd_t = Math.floor((vx - bcd_h * 100) / 10);
@@ -330,22 +319,38 @@ const ops: IOpCodes = {
 	},
 };
 
-const newState = (): ICPUState => {
+const create_state = (): ICPUState => {
 	const state: ICPUState = {
 		registers: new Uint8Array(DataRegisters.__SIZE),
 		specialReg: new Uint16Array(SpecialRegs.__SIZE),
 		memory: new Uint8Array(0x1000),
 		stack: new Uint16Array(48),
-		displayBuffer: new Uint8Array(32 * 64),
+		frameBuffer: new Uint8Array(32 * 64),
 		currentInstruction: 0x00,
 		halt: false,
 		execThunk: () => {},
 		ST: 0,
 		DT: 0,
 		clockSpeed: 800,
-		prevPC: 0x00,
 		tick: 0,
-		keys: new Array<boolean>(),
+		keys: [
+			false,
+			false,
+			false,
+			false,
+			false,
+			false,
+			false,
+			false,
+			false,
+			false,
+			false,
+			false,
+			false,
+			false,
+			false,
+			false,
+		],
 	};
 	state.specialReg[SpecialRegs.PC] = 0x200;
 
@@ -358,28 +363,34 @@ const newState = (): ICPUState => {
 	return state;
 };
 
-const loadRom = (file: ArrayBuffer, state: ICPUState) => {
+const load_rom = (file: ArrayBuffer, state: ICPUState) => {
 	const rom = new Uint8Array(file);
 	for (let i = 0; i <= rom.length; i++) {
 		state.memory[LOAD_ADDRESS + i] = rom[i];
 	}
 };
 
-const cpu_fetch = (state: ICPUState) => {
+const fetch = (state: ICPUState) => {
 	const bh = state.memory[state.specialReg[SpecialRegs.PC]];
 	const bl = state.memory[state.specialReg[SpecialRegs.PC] + 1];
 	state.currentInstruction = (bh << 8) | bl;
 };
 
-const cpu_decode = (state: ICPUState) => {
+const decode = (state: ICPUState) => {
+	// Those variables are independent and always at the same location, so we can extract them
+	// already and just pass them. Reduces duplicate code and makes it easier to maintain
 	const type = (state.currentInstruction & 0xf000) >> 12;
+	const address = state.currentInstruction & 0x0fff;
+	const rx = (state.currentInstruction & 0x0f00) >> 8;
+	const ry = (state.currentInstruction & 0x00f0) >> 4;
+	const value = state.currentInstruction & 0x00ff;
 	switch (type) {
 		case 0x0: {
 			const subType = state.currentInstruction & 0x00ff;
 			if (subType === 0xee) {
-				state.execThunk = () => ops.RET(state);
+				state.execThunk = () => OPHandler[OPCode.RET](state);
 			} else if (subType === 0xe0) {
-				state.execThunk = () => ops.CLS(state);
+				state.execThunk = () => OPHandler[OPCode.CLS](state);
 			} else {
 				state.execThunk = () => {};
 				//SYS CALL IGNORE;
@@ -387,43 +398,31 @@ const cpu_decode = (state: ICPUState) => {
 			break;
 		}
 		case 0x1: {
-			const address = state.currentInstruction & 0x0fff;
-			state.execThunk = () => ops.JMP(state, address);
+			state.execThunk = () => OPHandler[OPCode.JMP](state, address);
 			break;
 		}
 		case 0x2: {
-			const subroutine = state.currentInstruction & 0x0fff;
-			state.execThunk = () => ops.CALL(state, subroutine);
+			state.execThunk = () => OPHandler[OPCode.CALL](state, address);
 			break;
 		}
 		case 0x3: {
-			const rx = (state.currentInstruction & 0x0f00) >> 8;
-			const value = state.currentInstruction & 0x00ff;
-			state.execThunk = () => ops.SE_B(state, rx, value);
+			state.execThunk = () => OPHandler[OPCode.SE_B](state, rx, value);
 			break;
 		}
 		case 0x4: {
-			const rx = (state.currentInstruction & 0x0f00) >> 8;
-			const value = state.currentInstruction & 0x00ff;
-			state.execThunk = () => ops.SNE_B(state, rx, value);
+			state.execThunk = () => OPHandler[OPCode.SNE_B](state, rx, value);
 			break;
 		}
 		case 0x5: {
-			const rx = (state.currentInstruction & 0x0f00) >> 8;
-			const ry = (state.currentInstruction & 0x00f0) >> 4;
-			state.execThunk = () => ops.SE_VX(state, rx, ry);
+			state.execThunk = () => OPHandler[OPCode.SE_VX](state, rx, ry);
 			break;
 		}
 		case 0x6: {
-			const rx = (state.currentInstruction & 0x0f00) >> 8;
-			const value = state.currentInstruction & 0x00ff;
-			state.execThunk = () => ops.LD_B(state, rx, value);
+			state.execThunk = () => OPHandler[OPCode.LD_B](state, rx, value);
 			break;
 		}
 		case 0x7: {
-			const rx = (state.currentInstruction & 0x0f00) >> 8;
-			const value = state.currentInstruction & 0x00ff;
-			state.execThunk = () => ops.ADD_B(state, rx, value);
+			state.execThunk = () => OPHandler[OPCode.ADD_B](state, rx, value);
 			break;
 		}
 		case 0x8: {
@@ -432,79 +431,67 @@ const cpu_decode = (state: ICPUState) => {
 			const subType = state.currentInstruction & 0x000f;
 			switch (subType) {
 				case 0x0: {
-					state.execThunk = () => ops.LD_VX_VY(state, rx, ry);
+					state.execThunk = () => OPHandler[OPCode.LD_VX_VY](state, rx, ry);
 					break;
 				}
 				case 0x1: {
-					state.execThunk = () => ops.OR(state, rx, ry);
+					state.execThunk = () => OPHandler[OPCode.OR](state, rx, ry);
 					break;
 				}
 				case 0x2: {
-					state.execThunk = () => ops.AND(state, rx, ry);
+					state.execThunk = () => OPHandler[OPCode.AND](state, rx, ry);
 					break;
 				}
 				case 0x3: {
-					state.execThunk = () => ops.XOR(state, rx, ry);
+					state.execThunk = () => OPHandler[OPCode.XOR](state, rx, ry);
 					break;
 				}
 				case 0x4: {
-					state.execThunk = () => ops.ADD(state, rx, ry);
+					state.execThunk = () => OPHandler[OPCode.ADD](state, rx, ry);
 					break;
 				}
 				case 0x5: {
-					state.execThunk = () => ops.SUB(state, rx, ry);
+					state.execThunk = () => OPHandler[OPCode.SUB](state, rx, ry);
 					break;
 				}
 				case 0x6: {
-					state.execThunk = () => ops.SHR(state, rx, ry);
+					state.execThunk = () => OPHandler[OPCode.SHR](state, rx, ry);
 					break;
 				}
 				case 0x7: {
-					state.execThunk = () => ops.SUBN(state, rx, ry);
+					state.execThunk = () => OPHandler[OPCode.SUBN](state, rx, ry);
 					break;
 				}
 				case 0xe: {
-					state.execThunk = () => ops.SHL(state, rx, ry);
+					state.execThunk = () => OPHandler[OPCode.SHL](state, rx, ry);
 					break;
 				}
 				default: {
 					state.halt = true;
-					throw new Error(
-						`Unkown instruction: ${state.currentInstruction.toString(
-							16
-						)}`
-					);
+					throw new Error(`Unkown instruction: ${state.currentInstruction.toString(16)}`);
 				}
 			}
 			break;
 		}
 		case 0x9: {
-			const rx = (state.currentInstruction & 0x0f00) >> 8;
-			const ry = (state.currentInstruction & 0x00f0) >> 4;
-			state.execThunk = () => ops.SNE_VX(state, rx, ry);
+			state.execThunk = () => OPHandler[OPCode.SNE_VX](state, rx, ry);
 			break;
 		}
 		case 0xa: {
-			const value = state.currentInstruction & 0x0fff;
-			state.execThunk = () => ops.LD_I(state, value);
+			state.execThunk = () => OPHandler[OPCode.LD_I](state, value);
 			break;
 		}
 		case 0xb: {
-			const value = state.currentInstruction & 0x0fff;
-			state.execThunk = () => ops.JMP_V0(state, value);
+			state.execThunk = () => OPHandler[OPCode.JMP_V0](state, value);
 			break;
 		}
 		case 0xc: {
-			const rx = (state.currentInstruction & 0x0f00) >> 8;
-			const value = state.currentInstruction & 0x00ff;
-			state.execThunk = () => ops.RND(state, rx, value);
+			state.execThunk = () => OPHandler[OPCode.RND](state, rx, value);
 			break;
 		}
 		case 0xd: {
-			const rx = (state.currentInstruction & 0x0f00) >> 8;
-			const ry = (state.currentInstruction & 0x00f0) >> 4;
 			const height = state.currentInstruction & 0x000f;
-			state.execThunk = () => ops.DRAW(state, rx, ry, height);
+			state.execThunk = () => OPHandler[OPCode.DRAW](state, rx, ry, height);
 			break;
 		}
 		case 0xe: {
@@ -512,18 +499,14 @@ const cpu_decode = (state: ICPUState) => {
 			const rx = (state.currentInstruction & 0x0f00) >> 8;
 			switch (subType) {
 				case 0x9e:
-					state.execThunk = () => ops.SKP(state, rx);
+					state.execThunk = () => OPHandler[OPCode.SKP](state, rx);
 					break;
 				case 0xa1:
-					state.execThunk = () => ops.SKNP(state, rx);
+					state.execThunk = () => OPHandler[OPCode.SKNP](state, rx);
 					break;
 				default:
 					state.halt = true;
-					throw new Error(
-						`Unkown instruction: ${state.currentInstruction.toString(
-							16
-						)}`
-					);
+					throw new Error(`Unkown instruction: ${state.currentInstruction.toString(16)}`);
 			}
 			break;
 		}
@@ -532,70 +515,63 @@ const cpu_decode = (state: ICPUState) => {
 			const rx = (state.currentInstruction & 0x0f00) >> 8;
 			switch (subType) {
 				case 0x0a:
-					state.execThunk = () => ops.LD_VX_K(state, rx);
+					state.execThunk = () => OPHandler[OPCode.LD_VX_K](state, rx);
 					break;
 				case 0x29:
-					state.execThunk = () => ops.LD_F(state, rx);
+					state.execThunk = () => OPHandler[OPCode.LD_F](state, rx);
 					break;
 				case 0x07:
-					state.execThunk = () => ops.LD_VX_DT(state, rx);
+					state.execThunk = () => OPHandler[OPCode.LD_VX_DT](state, rx);
 					break;
 				case 0x15:
-					state.execThunk = () => ops.LD_DT(state, rx);
+					state.execThunk = () => OPHandler[OPCode.LD_DT](state, rx);
 					break;
 				case 0x18:
-					state.execThunk = () => ops.LD_ST(state, rx);
+					state.execThunk = () => OPHandler[OPCode.LD_ST](state, rx);
 					break;
 				case 0x1e:
-					state.execThunk = () => ops.ADD_I(state, rx);
+					state.execThunk = () => OPHandler[OPCode.ADD_I](state, rx);
 					break;
 				case 0x33:
-					state.execThunk = () => ops.LD_B_VX(state, rx);
+					state.execThunk = () => OPHandler[OPCode.LD_B_VX](state, rx);
 					break;
 				case 0x55:
-					state.execThunk = () => ops.LD_I_VX(state, rx);
+					state.execThunk = () => OPHandler[OPCode.LD_I_VX](state, rx);
 					break;
 				case 0x65:
-					state.execThunk = () => ops.LD_VX_I(state, rx);
+					state.execThunk = () => OPHandler[OPCode.LD_VX_I](state, rx);
 					break;
 				default:
 					state.halt = true;
-					throw new Error(
-						`Unkown instruction: ${state.currentInstruction.toString(
-							16
-						)}`
-					);
+					throw new Error(`Unkown instruction: ${state.currentInstruction.toString(16)}`);
 			}
 			break;
 		}
 		default: {
 			state.halt = true;
-			throw new Error(
-				`Unkown instruction: ${state.currentInstruction.toString(16)}`
-			);
+			throw new Error(`Unkown instruction: ${state.currentInstruction.toString(16)}`);
 		}
 	}
 };
-const cpu_exec = (state: ICPUState) => {
+
+const exec = (state: ICPUState) => {
+	const pc = state.specialReg[SpecialRegs.PC];
 	state.tick++;
 	state.execThunk();
-	// Increment on every but CALL AND BRANCH ops
-	const type = (state.currentInstruction & 0xf000) >> 12;
-	const subtype = state.currentInstruction & 0x00ff;
 	if (state.DT) {
-		state.DT--;
+		const newDT = state.DT - 60 / state.clockSpeed;
+		state.DT = newDT < 0 ? 0 : newDT;
 	}
 
 	if (state.ST) {
-		state.ST--;
+		const newST = state.ST - 60 / state.clockSpeed;
+		state.ST = newST < 0 ? 0 : newST;
 	}
-	if (type === 0x0 && subtype !== 0xe0 && subtype !== 0xee) {
+
+	// Only increment if OP didn't touch the PC Register
+	if (pc === state.specialReg[SpecialRegs.PC]) {
 		state.specialReg[SpecialRegs.PC] += 2;
 	}
-	if (type <= 0x5 || type === 0xe || type === 0xb) {
-		return;
-	}
-	state.specialReg[SpecialRegs.PC] += 2;
 };
 
-export { cpu_exec, cpu_fetch, newState, loadRom, cpu_decode };
+export { exec, fetch, create_state, load_rom, decode };

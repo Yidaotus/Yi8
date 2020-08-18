@@ -55,23 +55,7 @@ const renderer = document.createElement('canvas');
 renderer.width = imgData.width;
 renderer.height = imgData.height;
 
-type TKeyCodes =
-	| 49
-	| 50
-	| 51
-	| 52
-	| 65
-	| 83
-	| 68
-	| 70
-	| 81
-	| 87
-	| 69
-	| 82
-	| 89
-	| 88
-	| 67
-	| 86;
+type TKeyCodes = 49 | 50 | 51 | 52 | 65 | 83 | 68 | 70 | 81 | 87 | 69 | 82 | 89 | 88 | 67 | 86;
 type TKeyInputBuffer = Partial<{ [key in TKeyCodes]: boolean }>;
 
 let KeyCodes: {
@@ -100,7 +84,7 @@ const KeyInputBuffer: TKeyInputBuffer = {};
 export function readFile(input: HTMLInputElement) {
 	let file = input.files[0];
 	let reader = new FileReader();
-	state = CPU.newState();
+	state = CPU.create_state();
 
 	for (const key in KeyCodes) {
 		const val = KeyCodes[key];
@@ -109,9 +93,7 @@ export function readFile(input: HTMLInputElement) {
 
 	reader.readAsArrayBuffer(file);
 	reader.onload = function () {
-		CPU.loadRom(reader.result as ArrayBuffer, state);
-		const msTickRate = 1000 / state.clockSpeed;
-
+		CPU.load_rom(reader.result as ArrayBuffer, state);
 		t1 = performance.now();
 		let timer = requestAnimationFrame(tick);
 		input.value = null;
@@ -122,9 +104,10 @@ export function readFile(input: HTMLInputElement) {
 }
 
 let t1 = 0;
-const tick = () => {
-	const delta = performance.now() - t1;	
-	const ticks = (delta / state.clockSpeed)*1000;
+
+const tick = (t: number) => {
+	const delta = t - t1;
+	const ticks = (state.clockSpeed / 1000) * delta;
 	if (!state.halt) {
 		for (let i = 0; i < ticks; i++) {
 			try {
@@ -148,17 +131,17 @@ const tick = () => {
 				state.keys[0xb] = KeyInputBuffer[KeyCodes.C];
 				state.keys[0xf] = KeyInputBuffer[KeyCodes.V];
 
-				CPU.cpu_fetch(state);
-				CPU.cpu_decode(state);
-				CPU.cpu_exec(state);
+				CPU.fetch(state);
+				CPU.decode(state);
+				CPU.exec(state);
 			} catch (err) {
-				debugDP(state.displayBuffer);
+				debugDP(state.frameBuffer);
 				console.error(err);
 				return;
 			}
 		}
-		t1 = performance.now();
-		renderDP(state.displayBuffer, imgData);
+		t1 = t;
+		renderDP(state.frameBuffer, imgData);
 		renderer.getContext('2d').putImageData(imgData, 0, 0);
 		ctx.drawImage(renderer, 0, 0, 64 * 8, 32 * 8);
 		requestAnimationFrame(tick);
