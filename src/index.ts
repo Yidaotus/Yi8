@@ -178,7 +178,7 @@ const renderASM = (state: CPU.ICPUState, asm_div: HTMLDivElement) => {
 };
 
 let interfaceRefreshRate = 10; // HZ
-let displayRefreshRate = 1; // HZ
+let displayRefreshRate = 30; // HZ
 
 let ifTick = 0;
 let dpTick = 0;
@@ -236,8 +236,8 @@ const tick = (t: number) => {
 			const cpu_div_1 = document.querySelector('#cpu_1') as HTMLDivElement;
 			const cpu_div_2 = document.querySelector('#cpu_2') as HTMLDivElement;
 			const asm_div = document.querySelector('#asm') as HTMLDivElement;
-			//renderCPU(state, cpu_div_1, cpu_div_2);
-			//renderASM(state, asm_div);
+			renderCPU(state, cpu_div_1, cpu_div_2);
+			renderASM(state, asm_div);
 			ifTick = 0 //(1 / interfaceRefreshRate) * 1000;
 		}
 
