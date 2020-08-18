@@ -140,24 +140,24 @@ const renderCPU = (state: CPU.ICPUState, c_left: HTMLDivElement, c_right: HTMLDi
 
 	const st_p = document.createElement('p');
 	const st = Math.round(state.ST).toString(16).padStart(2, '0');
-	st_p.innerText = ` ST: 0x${st}`;
+	st_p.innerText = `ST: 0x${st}`;
 	subDiv_r.appendChild(st_p);
 
 	const dt_p = document.createElement('p');
 	const dt = Math.round(state.DT).toString(16).padStart(2, '0');
-	dt_p.innerText = ` DT: 0x${dt}`;
+	dt_p.innerText = `DT: 0x${dt}`;
 	subDiv_r.appendChild(dt_p);
 
 	c_right.replaceChild(subDiv_r, c_right.childNodes[0]);
 };
 
 const renderASM = (state: CPU.ICPUState, asm_div: HTMLDivElement) => {
-	const items = 19 * 2;
+	const items = 17 * 2;
 	let offset = 5 * 2;
 	const pc = state.specialReg[CPU.SpecialRegs.PC];
 	const item_div = document.createElement('div');
 
-	if((pc - offset) < 0x200) {
+	if (pc - offset < 0x200) {
 		offset = offset - pc;
 	}
 
@@ -170,7 +170,7 @@ const renderASM = (state: CPU.ICPUState, asm_div: HTMLDivElement) => {
 
 		const pc_s = i.toString(16).padStart(4, '0');
 
-		p.textContent = `0x${pc_s} 0x${op} T`;
+		p.textContent = `0x${pc_s}      0x${op} T`;
 		item_div.appendChild(p);
 	}
 
@@ -178,7 +178,13 @@ const renderASM = (state: CPU.ICPUState, asm_div: HTMLDivElement) => {
 };
 
 let interfaceRefreshRate = 10; // HZ
-let counterTick = (1 / interfaceRefreshRate) * 1000;
+let displayRefreshRate = 1; // HZ
+
+let ifTick = 0;
+let dpTick = 0;
+
+const ifTickTarget = (1 / interfaceRefreshRate) * 1000;
+const dpTickTarget = (1 / displayRefreshRate) * 1000;
 
 const tick = (t: number) => {
 	const delta = t - t1;
@@ -216,18 +222,23 @@ const tick = (t: number) => {
 			}
 		}
 		t1 = t;
-		renderDP(state.frameBuffer, imgData);
-		const cpu_div_1 = document.querySelector('#cpu_1') as HTMLDivElement;
-		const cpu_div_2 = document.querySelector('#cpu_2') as HTMLDivElement;
-		const asm_div = document.querySelector('#asm') as HTMLDivElement;
-		renderer.getContext('2d').putImageData(imgData, 0, 0);
-		ctx.drawImage(renderer, 0, 0, 64 * 8, 32 * 8);
 
-		counterTick -= delta;
-		if (counterTick < 0) {
-			renderCPU(state, cpu_div_1, cpu_div_2);
-			renderASM(state, asm_div);
-			counterTick = (1 / interfaceRefreshRate) * 1000;
+		dpTick += delta;
+		if (dpTick > dpTickTarget) {
+			renderDP(state.frameBuffer, imgData);
+			renderer.getContext('2d').putImageData(imgData, 0, 0);
+			ctx.drawImage(renderer, 0, 0, 64 * 8, 32 * 8);
+			dpTick = 0; //(1 / displayRefreshRate) * 1000;
+		}
+
+		ifTick += delta;
+		if (ifTick > ifTickTarget) {
+			const cpu_div_1 = document.querySelector('#cpu_1') as HTMLDivElement;
+			const cpu_div_2 = document.querySelector('#cpu_2') as HTMLDivElement;
+			const asm_div = document.querySelector('#asm') as HTMLDivElement;
+			//renderCPU(state, cpu_div_1, cpu_div_2);
+			//renderASM(state, asm_div);
+			ifTick = 0 //(1 / interfaceRefreshRate) * 1000;
 		}
 
 		requestAnimationFrame(tick);
