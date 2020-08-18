@@ -50,14 +50,14 @@ const DIGIT_SPRITES: { [index: number]: number[] } = {
 	0xf: [0xf0, 0x80, 0xf0, 0x80, 0x80],
 };
 
-enum SpecialRegs {
+export enum SpecialRegs {
 	PC,
 	I,
 	SP,
 	__SIZE,
 }
 
-enum DataRegisters {
+export enum DataRegisters {
 	V0 = 0,
 	V1 = 1,
 	V2 = 2,
@@ -77,7 +77,7 @@ enum DataRegisters {
 	__SIZE,
 }
 
-enum OPCode {
+export enum OPCode {
 	'LD_B',
 	'CALL',
 	'LD_I',
@@ -120,9 +120,9 @@ const OPHandler = {
 	[OPCode.LD_B]: (state: ICPUState, rx: number, value: number) => {
 		state.registers[rx] = value;
 	},
-	[OPCode.LD_I]: (state: ICPUState, value: number) => {
+	[OPCode.LD_I]: (state: ICPUState, address: number) => {
 		//Make it so you can't call SpecialRegs.I on normal regs
-		state.specialReg[SpecialRegs.I] = value;
+		state.specialReg[SpecialRegs.I] = address;
 	},
 	[OPCode.LD_F]: (state: ICPUState, rx: number) => {
 		const vx = state.registers[rx];
@@ -143,9 +143,9 @@ const OPHandler = {
 	[OPCode.JMP]: (state: ICPUState, value: number) => {
 		state.specialReg[SpecialRegs.PC] = value;
 	},
-	[OPCode.JMP_V0]: (state: ICPUState, value: number) => {
+	[OPCode.JMP_V0]: (state: ICPUState, address: number) => {
 		const v0 = state.registers[DataRegisters.V0];
-		state.specialReg[SpecialRegs.PC] = v0 + value;
+		state.specialReg[SpecialRegs.PC] = v0 + address;
 	},
 	[OPCode.SE_B]: (state: ICPUState, rx: number, value: number) => {
 		let vx = state.registers[rx];
@@ -182,10 +182,10 @@ const OPHandler = {
 		const SP = --state.specialReg[SpecialRegs.SP];
 		state.specialReg[SpecialRegs.PC] = state.stack[SP];
 	},
-	[OPCode.DRAW]: (state: ICPUState, rx: number, ry: number, value: number) => {
+	[OPCode.DRAW]: (state: ICPUState, rx: number, ry: number, height: number) => {
 		const sx = state.registers[rx];
 		const sy = state.registers[ry];
-		const height = value;
+
 		let flipped = false;
 		for (let y = 0; y < height; y++) {
 			const spriteAddress = state.specialReg[SpecialRegs.I] + y;
@@ -207,8 +207,6 @@ const OPHandler = {
 	},
 	[OPCode.CLS]: (state: ICPUState) => {
 		state.frameBuffer.fill(0x00);
-
-		state.specialReg[SpecialRegs.PC] += 2;
 	},
 	[OPCode.SKNP]: (state: ICPUState, rx: number) => {
 		const key = state.registers[rx];
@@ -377,51 +375,60 @@ const fetch = (state: ICPUState) => {
 };
 
 const decode = (state: ICPUState) => {
-	// Those variables are independent and always at the same location, so we can extract them
-	// already and just pass them. Reduces duplicate code and makes it easier to maintain
 	const type = (state.currentInstruction & 0xf000) >> 12;
-	const address = state.currentInstruction & 0x0fff;
-	const rx = (state.currentInstruction & 0x0f00) >> 8;
-	const ry = (state.currentInstruction & 0x00f0) >> 4;
-	const value = state.currentInstruction & 0x00ff;
 	switch (type) {
 		case 0x0: {
 			const subType = state.currentInstruction & 0x00ff;
-			if (subType === 0xee) {
-				state.execThunk = () => OPHandler[OPCode.RET](state);
-			} else if (subType === 0xe0) {
-				state.execThunk = () => OPHandler[OPCode.CLS](state);
-			} else {
-				state.execThunk = () => {};
-				//SYS CALL IGNORE;
+			switch (subType) {
+				case 0xee:
+					state.execThunk = () => OPHandler[OPCode.RET](state);
+					break;
+				case 0xe0:
+					state.execThunk = () => OPHandler[OPCode.CLS](state);
+					break;
+				default:
+					//SYS CALL IGNORE;
+					state.execThunk = () => {};
 			}
 			break;
 		}
 		case 0x1: {
+			const address = state.currentInstruction & 0x0fff;
 			state.execThunk = () => OPHandler[OPCode.JMP](state, address);
 			break;
 		}
 		case 0x2: {
+			const address = state.currentInstruction & 0x0fff;
 			state.execThunk = () => OPHandler[OPCode.CALL](state, address);
 			break;
 		}
 		case 0x3: {
+			const rx = (state.currentInstruction & 0x0f00) >> 8;
+			const value = state.currentInstruction & 0x00ff;
 			state.execThunk = () => OPHandler[OPCode.SE_B](state, rx, value);
 			break;
 		}
 		case 0x4: {
+			const rx = (state.currentInstruction & 0x0f00) >> 8;
+			const value = state.currentInstruction & 0x00ff;
 			state.execThunk = () => OPHandler[OPCode.SNE_B](state, rx, value);
 			break;
 		}
 		case 0x5: {
+			const rx = (state.currentInstruction & 0x0f00) >> 8;
+			const ry = (state.currentInstruction & 0x00f0) >> 4;
 			state.execThunk = () => OPHandler[OPCode.SE_VX](state, rx, ry);
 			break;
 		}
 		case 0x6: {
+			const rx = (state.currentInstruction & 0x0f00) >> 8;
+			const value = state.currentInstruction & 0x00ff;
 			state.execThunk = () => OPHandler[OPCode.LD_B](state, rx, value);
 			break;
 		}
 		case 0x7: {
+			const rx = (state.currentInstruction & 0x0f00) >> 8;
+			const value = state.currentInstruction & 0x00ff;
 			state.execThunk = () => OPHandler[OPCode.ADD_B](state, rx, value);
 			break;
 		}
@@ -474,22 +481,30 @@ const decode = (state: ICPUState) => {
 			break;
 		}
 		case 0x9: {
+			const rx = (state.currentInstruction & 0x0f00) >> 8;
+			const ry = (state.currentInstruction & 0x00f0) >> 4;
 			state.execThunk = () => OPHandler[OPCode.SNE_VX](state, rx, ry);
 			break;
 		}
 		case 0xa: {
-			state.execThunk = () => OPHandler[OPCode.LD_I](state, value);
+			const address = state.currentInstruction & 0x0fff;
+			state.execThunk = () => OPHandler[OPCode.LD_I](state, address);
 			break;
 		}
 		case 0xb: {
-			state.execThunk = () => OPHandler[OPCode.JMP_V0](state, value);
+			const address = state.currentInstruction & 0x0fff;
+			state.execThunk = () => OPHandler[OPCode.JMP_V0](state, address);
 			break;
 		}
 		case 0xc: {
+			const rx = (state.currentInstruction & 0x0f00) >> 8;
+			const value = state.currentInstruction & 0x00ff;
 			state.execThunk = () => OPHandler[OPCode.RND](state, rx, value);
 			break;
 		}
 		case 0xd: {
+			const rx = (state.currentInstruction & 0x0f00) >> 8;
+			const ry = (state.currentInstruction & 0x00f0) >> 4;
 			const height = state.currentInstruction & 0x000f;
 			state.execThunk = () => OPHandler[OPCode.DRAW](state, rx, ry, height);
 			break;
@@ -511,17 +526,14 @@ const decode = (state: ICPUState) => {
 			break;
 		}
 		case 0xf: {
-			const subType = state.currentInstruction & 0x00ff;
 			const rx = (state.currentInstruction & 0x0f00) >> 8;
+			const subType = state.currentInstruction & 0x00ff;
 			switch (subType) {
-				case 0x0a:
-					state.execThunk = () => OPHandler[OPCode.LD_VX_K](state, rx);
-					break;
-				case 0x29:
-					state.execThunk = () => OPHandler[OPCode.LD_F](state, rx);
-					break;
 				case 0x07:
 					state.execThunk = () => OPHandler[OPCode.LD_VX_DT](state, rx);
+					break;
+				case 0x0a:
+					state.execThunk = () => OPHandler[OPCode.LD_VX_K](state, rx);
 					break;
 				case 0x15:
 					state.execThunk = () => OPHandler[OPCode.LD_DT](state, rx);
@@ -531,6 +543,9 @@ const decode = (state: ICPUState) => {
 					break;
 				case 0x1e:
 					state.execThunk = () => OPHandler[OPCode.ADD_I](state, rx);
+					break;
+				case 0x29:
+					state.execThunk = () => OPHandler[OPCode.LD_F](state, rx);
 					break;
 				case 0x33:
 					state.execThunk = () => OPHandler[OPCode.LD_B_VX](state, rx);
@@ -569,9 +584,11 @@ const exec = (state: ICPUState) => {
 	}
 
 	// Only increment if OP didn't touch the PC Register
-	if (pc === state.specialReg[SpecialRegs.PC]) {
-		state.specialReg[SpecialRegs.PC] += 2;
+	// Needs fix for selfjump
+	if (pc !== state.specialReg[SpecialRegs.PC] || (state.currentInstruction & 0xf000) === 0x1000) {
+		return;
 	}
+	state.specialReg[SpecialRegs.PC] += 2;
 };
 
 export { exec, fetch, create_state, load_rom, decode };

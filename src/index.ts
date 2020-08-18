@@ -1,12 +1,25 @@
 import * as CPU from './cpu.js';
 
+// FG : #202A35
+// BG : #8F9185
+const COLOR_FG_R = 0x20;
+const COLOR_FG_G = 0x2a;
+const COLOR_FG_B = 0x35;
+
+const COLOR_BG_R = 0x8f;
+const COLOR_BG_G = 0x91;
+const COLOR_BG_B = 0x85;
+
 const renderDP = (dp: Uint8Array, buffer: ImageData) => {
 	for (let y = 0; y < 32; y++) {
 		for (let x = 0; x < 64; x++) {
 			const p = dp[y * 64 + x];
-			buffer.data[4 * (y * 64 + x) + 0] = p * 255;
-			buffer.data[4 * (y * 64 + x) + 1] = p * 255;
-			buffer.data[4 * (y * 64 + x) + 2] = p * 255;
+			const r = p ? COLOR_FG_R : COLOR_BG_R;
+			const g = p ? COLOR_FG_G : COLOR_BG_G;
+			const b = p ? COLOR_FG_B : COLOR_BG_B;
+			buffer.data[4 * (y * 64 + x) + 0] = r;
+			buffer.data[4 * (y * 64 + x) + 1] = g;
+			buffer.data[4 * (y * 64 + x) + 2] = b;
 			buffer.data[4 * (y * 64 + x) + 3] = 255;
 		}
 	}
@@ -105,6 +118,68 @@ export function readFile(input: HTMLInputElement) {
 
 let t1 = 0;
 
+const renderCPU = (state: CPU.ICPUState, c_left: HTMLDivElement, c_right: HTMLDivElement) => {
+	const subDiv_l = document.createElement('div');
+	for (const r in state.registers) {
+		const rf = Number(r).toString(16).toUpperCase();
+		const rv = state.registers[r].toString(16).padStart(2, '0');
+		const sp = document.createElement('p');
+		sp.innerText = `V${rf}:  0x${rv} `;
+		subDiv_l.appendChild(sp);
+	}
+	c_left.replaceChild(subDiv_l, c_left.childNodes[0]);
+
+	const subDiv_r = document.createElement('div');
+	for (const r in state.specialReg) {
+		const rf = CPU.SpecialRegs[r].padStart(2, '#');
+		const rv = state.specialReg[r].toString(16).padStart(4, '0');
+		const sp = document.createElement('p');
+		sp.innerText = `${rf}:  0x${rv} `;
+		subDiv_r.appendChild(sp);
+	}
+
+	const st_p = document.createElement('p');
+	const st = Math.round(state.ST).toString(16).padStart(2, '0');
+	st_p.innerText = ` ST: 0x${st}`;
+	subDiv_r.appendChild(st_p);
+
+	const dt_p = document.createElement('p');
+	const dt = Math.round(state.DT).toString(16).padStart(2, '0');
+	dt_p.innerText = ` DT: 0x${dt}`;
+	subDiv_r.appendChild(dt_p);
+
+	c_right.replaceChild(subDiv_r, c_right.childNodes[0]);
+};
+
+const renderASM = (state: CPU.ICPUState, asm_div: HTMLDivElement) => {
+	const items = 19 * 2;
+	let offset = 5 * 2;
+	const pc = state.specialReg[CPU.SpecialRegs.PC];
+	const item_div = document.createElement('div');
+
+	if((pc - offset) < 0x200) {
+		offset = offset - pc;
+	}
+
+	for (let i = pc - offset; i < pc - offset + items; i += 2) {
+		const p = document.createElement('p');
+
+		const bh = state.memory[i];
+		const bl = state.memory[i + 1];
+		const op = ((bh << 8) | bl).toString(16).padStart(4, '0');
+
+		const pc_s = i.toString(16).padStart(4, '0');
+
+		p.textContent = `0x${pc_s} 0x${op} T`;
+		item_div.appendChild(p);
+	}
+
+	asm_div.replaceChild(item_div, asm_div.childNodes[0]);
+};
+
+let interfaceRefreshRate = 10; // HZ
+let counterTick = (1 / interfaceRefreshRate) * 1000;
+
 const tick = (t: number) => {
 	const delta = t - t1;
 	const ticks = (state.clockSpeed / 1000) * delta;
@@ -142,8 +217,19 @@ const tick = (t: number) => {
 		}
 		t1 = t;
 		renderDP(state.frameBuffer, imgData);
+		const cpu_div_1 = document.querySelector('#cpu_1') as HTMLDivElement;
+		const cpu_div_2 = document.querySelector('#cpu_2') as HTMLDivElement;
+		const asm_div = document.querySelector('#asm') as HTMLDivElement;
 		renderer.getContext('2d').putImageData(imgData, 0, 0);
 		ctx.drawImage(renderer, 0, 0, 64 * 8, 32 * 8);
+
+		counterTick -= delta;
+		if (counterTick < 0) {
+			renderCPU(state, cpu_div_1, cpu_div_2);
+			renderASM(state, asm_div);
+			counterTick = (1 / interfaceRefreshRate) * 1000;
+		}
+
 		requestAnimationFrame(tick);
 	}
 };

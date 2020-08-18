@@ -2,17 +2,101 @@
 	<head>
 		<script type="module">
 			import * as i from './built/index.js';
-			document.getElementById('fileinput').onchange = (event) =>
-				i.readFile(event.target);
+			document.getElementById('fileinput').onchange = (event) => i.readFile(event.target);
 		</script>
+		<style type="text/css">
+			@font-face {
+				font-family: startk;
+				src: url(vcr.ttf);
+			}
+
+			body {
+				font-family: startk;
+				color: white;
+				font-size: 21px;
+				line-height: 1px;
+			}
+
+			.grid-container {
+				display: grid;
+				grid-template-columns: 1fr 1fr 1fr;
+				grid-template-rows: 1fr 1fr;
+				gap: 0px;
+				grid-template-areas: 'screen screen dissasembly' 'console console cpustate';
+				max-width: 1200px;
+			}
+
+			.grid-container > div {
+				border-style: groove;
+				border-color: #455361;
+				border-width: 5px;
+				background-color: #202a35;
+				padding-left: 10px;
+				padding-right: 10px;
+				padding-top: 10px;
+			}
+
+			.screen {
+				border-right: none !important;
+				grid-area: screen;
+				padding: 0px !important;
+			}
+
+			.dissasembly {
+				grid-area: dissasembly;
+			}
+
+			.console {
+				border-top: none !important;
+				border-right: none !important;
+				grid-area: console;
+			}
+
+			.cpustate {
+				border-top: none !important;
+				grid-area: cpustate;
+			}
+
+			.cpustate {
+				display: grid;
+				grid-template-columns: 1fr 1fr;
+				grid-template-rows: 1fr;
+				gap: 1px 1px;
+				grid-template-areas: 'cpu_1 cpu_2';
+			}
+
+			.cpustate:nth-child(1) {
+				grid-area: cpu_1;
+			}
+
+			.cpustate:nth-child(2) {
+				grid-area: cpu_2;
+			}
+
+			.pc_highlight {
+				background-color: #606f80;
+			}
+		</style>
 	</head>
 	<body>
-		<h1>Yi-8</h1>
+		<div class="grid-container">
+			<div class="screen">
+				<canvas id="canvas" tabindex="1" style="width: 100%;"></canvas>
+			</div>
+			<div id="asm" class="dissasembly">
+				<div></div>
+			</div>
+			<div class="console">
+				<p>Lorem ipsum dolar sit</p>
+			</div>
+			<div class="cpustate">
+				<div id="cpu_1">
+				</div>
+				<div id="cpu_2">
+					<div></div>
+				</div>
+			</div>
+		</div>
 		<input type="file" id="fileinput" />
-		<canvas
-			id="canvas"
-			tabindex="1"
-			style="border-color: red; border-style: double;"
-		></canvas>
 	</body>
 </html>
