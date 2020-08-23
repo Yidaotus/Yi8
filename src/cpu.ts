@@ -116,18 +116,7 @@ export enum OPCode {
 
 const LOAD_ADDRESS = 0x200;
 
-type TXModifier = (state: ICPUState, rx: number) => void; 
-type TYModifier = (state: ICPUState, ry: number) => void; 
-type TVModifier = (state: ICPUState, value: number) => void; 
-type TXVModifier = (state: ICPUState, rx: number, value: number) => void; 
-type TXYModifier = (state: ICPUState, rx: number, ry: number) => void; 
-type TXYVModifier = (state: ICPUState, rx: number, ry: number, value: number) => void; 
-interface IOpHandler {
-	[OPCode.LD_B]: TXVModifier,
-	[OPCode.LD_I]: TVModifier;
-}
-
-const OPHandler: IOpHandler = {
+const OPHandler = {
 	[OPCode.LD_B]: (state: ICPUState, rx: number, value: number) => {
 		state.registers[rx] = value;
 	},
