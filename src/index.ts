@@ -70,9 +70,26 @@ renderer.height = imgData.height;
 
 type TKeyCodes = 49 | 50 | 51 | 52 | 65 | 83 | 68 | 70 | 81 | 87 | 69 | 82 | 89 | 88 | 67 | 86;
 type TKeyInputBuffer = Partial<{ [key in TKeyCodes]: boolean }>;
+type TKeyNames =
+	| 'ONE'
+	| 'TWO'
+	| 'THREE'
+	| 'FOUR'
+	| 'Q'
+	| 'W'
+	| 'E'
+	| 'R'
+	| 'A'
+	| 'S'
+	| 'D'
+	| 'F'
+	| 'Y'
+	| 'X'
+	| 'C'
+	| 'V';
 
 let KeyCodes: {
-	[index: string]: TKeyCodes;
+	[K in TKeyNames]: TKeyCodes;
 } = {
 	ONE: 49,
 	TWO: 50,
@@ -238,7 +255,7 @@ const tick = (t: number) => {
 			const asm_div = document.querySelector('#asm') as HTMLDivElement;
 			renderCPU(state, cpu_div_1, cpu_div_2);
 			renderASM(state, asm_div);
-			ifTick = 0 //(1 / interfaceRefreshRate) * 1000;
+			ifTick = 0; //(1 / interfaceRefreshRate) * 1000;
 		}
 
 		requestAnimationFrame(tick);
