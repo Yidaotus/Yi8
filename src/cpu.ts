@@ -584,7 +584,7 @@ const exec = (state: ICPUState) => {
 	}
 
 	// Only increment if OP didn't touch the PC Register
-	// Needs fix for selfjump
+	// Needs fix for jump to current PC (infinite loop)
 	if (pc !== state.specialReg[SpecialRegs.PC] || (state.currentInstruction & 0xf000) === 0x1000) {
 		return;
 	}
