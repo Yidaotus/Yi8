@@ -21,9 +21,11 @@ const tick = (t: number) => {
 	const ticks = (state.clockSpeed / 1000) * delta;
 	t1 = t;
 
-	CPU.fetch(state);
-	CPU.decode(state);
-	CPU.exec(state);
+	for (let i = 0; i < ticks; i++) {
+		CPU.fetch(state);
+		CPU.decode(state);
+		CPU.exec(state);
+	}
 
 	dpTick += delta;
 	if (dpTick > dpTickTarget) {
