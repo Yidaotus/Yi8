@@ -117,7 +117,7 @@ export function readFile(input: HTMLInputElement) {
 	state = CPU.create_state();
 
 	for (const key in KeyCodes) {
-		const val = KeyCodes[key];
+		const val = KeyCodes[key as TKeyNames];
 		KeyInputBuffer[val] = false;
 	}
 
