@@ -6,7 +6,17 @@ A very simple emulator for the CHIP-8 architecture.
 
 ## Build
 
-Just run `tsc` and open the `index.html`.
+Just run `tsc` and serve the `index.html` with any webserver. `python3 -m http.server` for example. 
+
+## Usage
+
+To start the emulator click the `select a file` button and select your rom. Keybinds are
+```
+1 2 3 4
+q w e r
+a s d f
+y x c v
+```
 
 ## Notes
 
