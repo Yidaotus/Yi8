@@ -4,6 +4,12 @@ A very simple emulator for the CHIP-8 architecture.
 
 ![alt text](https://github.com/Yidaotus/Yi8/blob/master/screen.png?raw=true)
 
+## Build
+
+Just run `tsc` and open the `index.html`.
+
+## Notes
+
 Timings in Javascript is pretty hard. Currently I get a somewhat accurate implementation by using requestAnimationFrame and generating a delta between the calls.
 
 ```typescript
